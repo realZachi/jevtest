@@ -1,0 +1,23 @@
+{
+  "name": "jevtest-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter jevtest build",
+    "test": "pnpm -r --filter jevtest test",
+    "test:integration": "pnpm -r --filter jevtest test:integration",
+    "demo": "pnpm --filter jevtest-demo demo",
+    "demo:test": "pnpm --filter jevtest-demo test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "typescript": "^5.9.0"
+  }
+}

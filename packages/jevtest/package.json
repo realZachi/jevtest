@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Semantic test matchers for Vitest and Jest, powered by TypeSafe's Jev model. Write expectations in plain English, get calibrated probabilities back.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/realZachi/jevtest.git",
+    "directory": "packages/jevtest"
+  },
+  "homepage": "https://github.com/realZachi/jevtest#readme",
+  "bugs": {
+    "url": "https://github.com/realZachi/jevtest/issues"
+  },
   "sideEffects": false,
   "type": "module",
   "keywords": [

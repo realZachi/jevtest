@@ -44,8 +44,16 @@ export default defineConfig({
 });
 ```
 
-The setup file registers the matchers and the types. Every matcher is async, so always `await` the
-`expect(...)` call.
+The setup file registers the matchers at runtime. For TypeScript, also create a declaration file
+included by your `tsconfig.json` (for example, `tests/jevtest.d.ts`):
+
+```ts
+// tests/jevtest.d.ts
+import "jevtest/vitest";
+```
+
+This import loads the matcher types; the `setupFiles` entry alone does not make them available to
+TypeScript. Every matcher is async, so always `await` the `expect(...)` call.
 
 ```ts
 import { expect, it } from "vitest";

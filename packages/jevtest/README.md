@@ -12,8 +12,21 @@ export TYPESAFE_API_KEY=...   # get a key at https://typesafe.ai
 
 ```ts
 // vitest.config.ts
+import { defineConfig } from "vitest/config";
+
 export default defineConfig({ test: { setupFiles: ["jevtest/vitest/setup"] } });
 ```
+
+The setup file registers the matchers at runtime. For TypeScript, also create a declaration file
+included by your `tsconfig.json` (for example, `tests/jevtest.d.ts`):
+
+```ts
+// tests/jevtest.d.ts
+import "jevtest/vitest";
+```
+
+This import loads the matcher types; the `setupFiles` entry alone does not make them available to
+TypeScript.
 
 Matchers are async, so always `await` the `expect(...)` call.
 

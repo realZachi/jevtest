@@ -6,7 +6,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:update": "vitest run -u",
     "demo": "tsx scripts/showcase.ts",
+    "demo:fail": "JEVTEST_DEMO_FAIL=1 vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

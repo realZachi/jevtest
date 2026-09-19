@@ -2,8 +2,8 @@
 
 ## Layout
 
-- `packages/jevtest` — the library (`jevtest`, `jevtest/vitest`, `jevtest/vitest/setup`, `jevtest/jest`)
-- `examples/demo` — runnable showcase and example test suite
+- `packages/jevtest` - the library (`jevtest`, `jevtest/vitest`, `jevtest/vitest/setup`, `jevtest/jest`)
+- `examples/demo` - runnable showcase and example test suite
 
 ## Architecture (read before touching `src/`)
 

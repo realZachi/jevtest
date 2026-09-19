@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: lint, typecheck, build, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  integration:
+    name: integration and demo tests
+    runs-on: ubuntu-latest
+    needs: build
+    # Secrets cannot be read in a job-level `if`, so the presence check is a
+    # step-level condition on a value exported from an earlier step.
+    env:
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+    steps:
+      - id: key
+        run: echo "present=${{ secrets.TYPESAFE_API_KEY != '' }}" >> "$GITHUB_OUTPUT"
+      - if: steps.key.outputs.present == 'true'
+        uses: actions/checkout@v4
+      - if: steps.key.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.key.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.key.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.key.outputs.present == 'true'
+        run: pnpm build
+      - if: steps.key.outputs.present == 'true'
+        run: pnpm test:integration
+      - if: steps.key.outputs.present == 'true'
+        run: pnpm --filter jevtest-demo test
+      - if: steps.key.outputs.present != 'true'
+        run: echo "TYPESAFE_API_KEY is not set, skipping integration and demo tests."

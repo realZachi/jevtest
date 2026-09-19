@@ -1,0 +1,177 @@
+/**
+ * A terminal walkthrough of the jevtest core, without vitest.
+ * Run it with `pnpm demo`. Needs TYPESAFE_API_KEY.
+ */
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { classifyDiff, configure, getStats, satisfies, satisfiesAll } from "jevtest";
+import {
+  baseline,
+  behavioralChange,
+  cosmeticChange,
+  renderReleaseNotes,
+} from "../src/release-notes.js";
+import {
+  type Bot,
+  customerMessages,
+  messageText,
+  politeBot,
+  sloppyBot,
+} from "../src/support-bot.js";
+
+// --- colors -----------------------------------------------------------------
+const useColor = process.stdout.isTTY === true && process.env.NO_COLOR === undefined;
+const esc = String.fromCharCode(27);
+const wrap = (code: string) => (text: string) =>
+  useColor ? `${esc}[${code}m${text}${esc}[0m` : text;
+const bold = wrap("1");
+const dim = wrap("2");
+const red = wrap("31");
+const green = wrap("32");
+const yellow = wrap("33");
+const cyan = wrap("36");
+
+// --- .env -------------------------------------------------------------------
+function loadEnv(): void {
+  if (process.env.TYPESAFE_API_KEY) return;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const envFile = path.resolve(here, "../../../.env");
+  if (!existsSync(envFile)) return;
+  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+    const match = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const key = match[1] as string;
+    if (process.env[key] !== undefined) continue;
+    process.env[key] = (match[2] as string).trim().replace(/^["']|["']$/g, "");
+  }
+}
+
+const THRESHOLD = 0.85;
+const EXPECTATIONS = [
+  "apologizes to the customer",
+  "avoids promising a refund",
+  "tells the customer what happens next",
+];
+
+function excerpt(text: string, width: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length <= width ? flat.padEnd(width) : `${flat.slice(0, width - 1)}…`;
+}
+
+function verdict(probability: number): string {
+  return probability >= THRESHOLD ? green("✓") : red("✗");
+}
+
+function probabilityCell(probability: number): string {
+  const text = probability.toFixed(2).padStart(4);
+  if (probability >= THRESHOLD) return green(text);
+  if (probability <= 1 - THRESHOLD) return dim(text);
+  return yellow(text);
+}
+
+function heading(text: string): void {
+  console.log(`\n${bold(text)}\n${dim("─".repeat(text.length))}`);
+}
+
+// The three expectations are the support policy, so the showcase runs them over
+// the complaints. The feature request is answered, not apologized for.
+const complaints = customerMessages.filter((message) => message.topic !== "feature");
+
+async function judgeBot(label: string, bot: Bot): Promise<void> {
+  const rows = await Promise.all(
+    complaints.map(async (message) => ({
+      message,
+      results: await satisfiesAll(bot(message.text), EXPECTATIONS),
+    })),
+  );
+
+  heading(`${label}: ${EXPECTATIONS.length} expectations x ${complaints.length} messages`);
+  console.log(
+    dim(`${"message".padEnd(20)}${EXPECTATIONS.map((e) => excerpt(e, 14)).join("")}latency`),
+  );
+  for (const row of rows) {
+    const cells = row.results
+      .map(
+        (result) =>
+          `${probabilityCell(result.probability)} ${verdict(result.probability)}${" ".repeat(8)}`,
+      )
+      .join("");
+    const latency = Math.max(...row.results.map((result) => result.latencyMs));
+    const cached = row.results.every((result) => result.cached);
+    console.log(
+      `${excerpt(row.message.id, 20)}${cells}${dim(cached ? "cached" : `${latency} ms`)}`,
+    );
+  }
+}
+
+async function main(): Promise<void> {
+  loadEnv();
+  if (!process.env.TYPESAFE_API_KEY) {
+    console.error(
+      `\n${red("No TYPESAFE_API_KEY.")}\n` +
+        "Get a key at https://typesafe.ai, then either export it or write it to\n" +
+        "the repo root .env as TYPESAFE_API_KEY=...\n",
+    );
+    process.exit(1);
+  }
+
+  configure({ cache: "memory", threshold: THRESHOLD });
+
+  console.log(bold("\njevtest showcase"));
+  console.log(dim("Jev answers narrow questions about an output and returns a probability."));
+  console.log(dim(`Pass means probability >= ${THRESHOLD.toFixed(2)}.`));
+
+  await judgeBot("politeBot (the behaviour we want)", politeBot);
+  await judgeBot("sloppyBot (the regression)", sloppyBot);
+
+  heading("Sharpening an expectation");
+  const reply = sloppyBot(messageText("late-delivery"));
+  const vague = await satisfies({ subject: reply, expectation: "is a helpful reply" });
+  const sharp = await satisfies({
+    subject: reply,
+    expectation: {
+      text: "blames the customer",
+      yes: "the reply attributes the problem to something the customer did",
+      no: "the reply takes responsibility or stays neutral about the cause",
+    },
+  });
+  console.log(excerpt(reply, 78));
+  console.log(`  "is a helpful reply"           ${probabilityCell(vague.probability)}`);
+  console.log(`  "blames the customer" + yes/no ${probabilityCell(sharp.probability)}`);
+
+  heading("Semantic snapshots");
+  const previous = renderReleaseNotes(baseline);
+  const intent = "the list of breaking changes and their versions";
+  for (const [label, entries] of [
+    ["cosmetic rewrite", cosmeticChange],
+    ["breaking change dropped", behavioralChange],
+  ] as const) {
+    const diff = await classifyDiff({ previous, current: renderReleaseNotes(entries), intent });
+    const pass = diff.kind === "cosmetic" && diff.probabilities.cosmetic >= 0.8;
+    console.log(
+      `${excerpt(label, 26)}${cyan(diff.kind.padEnd(12))}` +
+        `cosmetic ${probabilityCell(diff.probabilities.cosmetic)}  ` +
+        `behavioral ${probabilityCell(diff.probabilities.behavioral)}  ` +
+        `${pass ? green("✓ passes") : red("✗ fails")}`,
+    );
+  }
+
+  heading("Second pass (same judgments, served from the cache)");
+  const before = getStats().requests;
+  await judgeBot("politeBot again", politeBot);
+  console.log(dim(`API requests added by the second pass: ${getStats().requests - before}`));
+
+  heading("Stats");
+  for (const [key, value] of Object.entries(getStats())) {
+    console.log(`${dim(key.padEnd(16))}${value}`);
+  }
+  console.log();
+}
+
+main().catch((error: unknown) => {
+  console.error(
+    `\n${red("showcase failed:")} ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exit(1);
+});

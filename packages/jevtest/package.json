@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Semantic test matchers for Vitest and Jest, powered by TypeSafe's Jev model. Write expectations in plain English, get calibrated probabilities back.",
   "license": "MIT",
+  "sideEffects": false,
   "type": "module",
   "keywords": [
     "vitest",
